@@ -35,6 +35,7 @@ collisionMessage.style.display = "none";
 collisionMessage.style.zIndex = "1";
 document.body.appendChild(collisionMessage);
 
+//Timer
 const timerMessage = document.createElement("div");
 timerMessage.style.position = "fixed";
 timerMessage.style.top = "24px";
@@ -46,6 +47,22 @@ timerMessage.style.color = "#ffffff";
 timerMessage.style.textShadow = "2px 2px 4px #000000";
 timerMessage.style.zIndex = "1";
 document.body.appendChild(timerMessage);
+
+//Score
+let score = 0;
+let gameWon = false;
+const scoreMessage = document.createElement("div");
+scoreMessage.style.position = "fixed";
+scoreMessage.style.top = "24px";
+scoreMessage.style.left = "24px";
+scoreMessage.style.fontFamily = "sans-serif";
+scoreMessage.style.fontSize = "24px";
+scoreMessage.style.fontWeight = "bold";
+scoreMessage.style.color = "#ffffff";
+scoreMessage.style.textShadow = "2px 2px 4px #000000";
+scoreMessage.style.zIndex = "1";
+scoreMessage.textContent = "Score: 0 / 10";
+document.body.appendChild(scoreMessage);
 
 // Ground Plane
 const planeGeometry = new THREE.PlaneGeometry(30, 30);
@@ -90,7 +107,7 @@ const player = new THREE.Mesh(
 player.position.y = 0.5;
 scene.add(player);
 
-const planeObjects = [
+/* const planeObjects = [
     new THREE.Mesh(
         new THREE.SphereGeometry(1, 32, 16),
         new THREE.MeshStandardMaterial({ color: 0xff6600 })
@@ -141,9 +158,22 @@ function placeObjects(objects) {
         object.position.set(...objectPositions[index]);
         scene.add(object);
     });
-}
+} */
 
-placeObjects(planeObjects);
+//Collectible Cubes
+const collectibles = [];
+const collectibleGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+const collectibleMaterial = new THREE.MeshStandardMaterial({ color: 0xFF00FF });
+
+for (let i=0; i<10; i++){
+    const cube = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
+    cube.position.x = (Math.random() - 0.5) * 20;
+    cube.position.y = 0.5;
+    cube.position.z = (Math.random() - 0.5) * 20;
+
+    scene.add(cube);
+    collectibles.push(cube);
+}
 
 // Keyboard State Object
 const keys = {};
@@ -208,44 +238,40 @@ function updateCollisionMessage(isColliding) {
 }
 
 function handleCollisions() {
+    if (gameWon) return;
     playerBounds.setFromObject(player);
-    let isColliding = false;
+    for (let i = collectibles.length - 1; i >= 0; i--) {
+	const cube = collectibles[i];
+	objectBounds.setFromObject(cube);
 
-    planeObjects.forEach((object) => {
-        if (object === targetObject) {
-            if (targetFound) {
-                return;
-            }
+	if (playerBounds.intersectsBox(objectBounds)) {
+	    scene.remove(cube);
+	    collectibles.splice(i, 1);
+	    score++;
+	    
+	    scoreMessage.textContent = `Score: ${score} / 10`;
 
-            objectBounds.setFromObject(object);
-
-            if (playerBounds.intersectsBox(objectBounds)) {
-                targetFound = true;
-                object.visible = false;
-            }
-
-            return;
-        }
-
-        objectBounds.setFromObject(object);
-        const objectIsColliding = playerBounds.intersectsBox(objectBounds);
-
-        if (objectIsColliding) {
-            isColliding = true;
-            object.visible = Math.floor(performance.now() / 100) % 2 === 0;
-        } else {
-            object.visible = true;
-        }
-    });
-
-    updateCollisionMessage(isColliding);
+	    if (collectibles.length === 0) {
+		gameWon = true;
+		collisionMessage.textContent = "You Win!";
+		collisionMessage.style.display = "block";
+		collisionMessage.style.color = "#22cc55";
+	        }
+	    }
+    }
 }
+
 
 // Animation Loop
 function animate() {
 
     requestAnimationFrame(animate);
+    collectibles.forEach(cube => {
+	cube.rotation.y += 0.02;
+	cube.rotation.x += 0.01;
+    });
 
+    if (!gameWon) {
     updateTimer();
 
     // WASD Controls
@@ -281,7 +307,7 @@ function animate() {
     if (keys["arrowright"]) {
         player.position.x += speed;
     }
-
+}
     handleCollisions();
 
     renderer.render(scene, camera);

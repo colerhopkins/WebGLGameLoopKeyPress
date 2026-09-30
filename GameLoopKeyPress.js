@@ -35,22 +35,11 @@ collisionMessage.style.display = "none";
 collisionMessage.style.zIndex = "1";
 document.body.appendChild(collisionMessage);
 
-//Timer
-const timerMessage = document.createElement("div");
-timerMessage.style.position = "fixed";
-timerMessage.style.top = "24px";
-timerMessage.style.right = "24px";
-timerMessage.style.fontFamily = "sans-serif";
-timerMessage.style.fontSize = "24px";
-timerMessage.style.fontWeight = "bold";
-timerMessage.style.color = "#ffffff";
-timerMessage.style.textShadow = "2px 2px 4px #000000";
-timerMessage.style.zIndex = "1";
-document.body.appendChild(timerMessage);
-
-//Score
+//important variables
 let score = 0;
-let gameWon = false;
+let gameOver = false;
+let lastSpawn = 0;
+//Score
 const scoreMessage = document.createElement("div");
 scoreMessage.style.position = "fixed";
 scoreMessage.style.top = "24px";
@@ -61,7 +50,7 @@ scoreMessage.style.fontWeight = "bold";
 scoreMessage.style.color = "#ffffff";
 scoreMessage.style.textShadow = "2px 2px 4px #000000";
 scoreMessage.style.zIndex = "1";
-scoreMessage.textContent = "Score: 0 / 10";
+scoreMessage.textContent = "Score: 0";
 document.body.appendChild(scoreMessage);
 
 // Ground Plane
@@ -107,74 +96,20 @@ const player = new THREE.Mesh(
 player.position.y = 0.5;
 scene.add(player);
 
-/* const planeObjects = [
-    new THREE.Mesh(
-        new THREE.SphereGeometry(1, 32, 16),
-        new THREE.MeshStandardMaterial({ color: 0xff6600 })
-    ),
-    new THREE.Mesh(
-        new THREE.ConeGeometry(1, 2, 32),
-        new THREE.MeshStandardMaterial({ color: 0xff00aa })
-    ),
-    new THREE.Mesh(
-        new THREE.CylinderGeometry(1, 1, 2, 32),
-        new THREE.MeshStandardMaterial({ color: 0xffff00 })
-    ),
-    new THREE.Mesh(
-        new THREE.TorusGeometry(1, 0.35, 16, 32),
-        new THREE.MeshStandardMaterial({ color: 0x00ffff })
-    ),
-    new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.1, 0),
-        new THREE.MeshStandardMaterial({ color: 0x22cc55 })
-    )
-];
+//Obstacle Spawning
+const obstacles = [];
+const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
+const obstacleMaterial = new THREE.MeshStandardMaterial({color: 0xff0000});
 
-const targetObject = planeObjects[planeObjects.length - 1];
-
-function placeObjects(objects) {
-    const objectPositions = [];
-
-    while (objectPositions.length < objects.length) {
-        const position = [
-            Math.random() * 12 - 6,
-            1,
-            Math.random() * 12 - 6
-        ];
-        const isFarEnoughFromPlayer = Math.hypot(position[0], position[2]) > 2.5;
-        const isFarEnoughFromObjects = objectPositions.every((otherPosition) =>
-            Math.hypot(
-                position[0] - otherPosition[0],
-                position[2] - otherPosition[2]
-            ) > 2.5
-        );
-
-        if (isFarEnoughFromPlayer && isFarEnoughFromObjects) {
-            objectPositions.push(position);
-        }
-    }
-
-    objects.forEach((object, index) => {
-        object.position.set(...objectPositions[index]);
-        scene.add(object);
-    });
-} */
-
-//Collectible Cubes
-const collectibles = [];
-const collectibleGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-const collectibleMaterial = new THREE.MeshStandardMaterial({ color: 0xFF00FF });
-
-for (let i=0; i<10; i++){
-    const cube = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
-    cube.position.x = (Math.random() - 0.5) * 20;
-    cube.position.y = 0.5;
-    cube.position.z = (Math.random() - 0.5) * 20;
-
-    scene.add(cube);
-    collectibles.push(cube);
+function spawnObstacles(){
+    const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+    //Random spawning positioning
+    const randomX = (Math.random() - 0.5) * 20;
+    const randomZ = (Math.random() - 0.5) * 20;
+    obstacle.position.set(randomX, 10, randomZ);
+    scene.add(obstacle);
+    obstacles.push(obstacle);
 }
-
 // Keyboard State Object
 const keys = {};
 
@@ -192,124 +127,61 @@ window.addEventListener("keyup", (event) => {
 const speed = 0.1;
 const playerBounds = new THREE.Box3();
 const objectBounds = new THREE.Box3();
-let collisionTime = 0;
-let targetFound = false;
-const gameStartTime = performance.now();
-const gameDuration = 20;
-
-function updateTimerMessage(secondsRemaining) {
-    if (secondsRemaining === 0) {
-        timerMessage.textContent = "TIME'S UP!";
-        timerMessage.style.top = "50%";
-        timerMessage.style.right = "auto";
-        timerMessage.style.left = "50%";
-        timerMessage.style.transform = "translate(-50%, -50%)";
-        timerMessage.style.width = "100%";
-        timerMessage.style.textAlign = "center";
-        timerMessage.style.fontSize = "15vw";
-        timerMessage.style.color = "#ff3333";
-    } else {
-        timerMessage.textContent = `Time: ${secondsRemaining}`;
-    }
-}
-
-function updateTimer() {
-    const elapsedSeconds = Math.floor((performance.now() - gameStartTime) / 1000);
-    const secondsRemaining = Math.max(gameDuration - elapsedSeconds, 0);
-    updateTimerMessage(secondsRemaining);
-}
-
-function updateCollisionMessage(isColliding) {
-    if (targetFound) {
-        collisionMessage.textContent = "Congratulations! You win!";
-        collisionMessage.style.display = "block";
-        collisionMessage.style.color = "#22cc55";
-    } else if (isColliding) {
-        collisionMessage.textContent = "Collision is happening!";
-        collisionTime += 0.05;
-        collisionMessage.style.display = "block";
-        collisionMessage.style.color = `hsl(${(collisionTime * 180) % 360}, 100%, 50%)`;
-    } else {
-        collisionTime = 0;
-        collisionMessage.textContent = "Collision is happening!";
-        collisionMessage.style.display = "none";
-        collisionMessage.style.color = "#ffffff";
-    }
-}
 
 function handleCollisions() {
-    if (gameWon) return;
+    if (gameOver) return;
     playerBounds.setFromObject(player);
-    for (let i = collectibles.length - 1; i >= 0; i--) {
-	const cube = collectibles[i];
-	objectBounds.setFromObject(cube);
-
-	if (playerBounds.intersectsBox(objectBounds)) {
-	    scene.remove(cube);
-	    collectibles.splice(i, 1);
-	    score++;
-	    
-	    scoreMessage.textContent = `Score: ${score} / 10`;
-
-	    if (collectibles.length === 0) {
-		gameWon = true;
-		collisionMessage.textContent = "You Win!";
-		collisionMessage.style.display = "block";
-		collisionMessage.style.color = "#22cc55";
-	        }
-	    }
+    for (let i = obstacles.length -1; i>=0; i--){
+        const obstacle = obstacles[i];
+        objectBounds.setFromObject(obstacle);
+        
+        if (playerBounds.intersectsBox(objectBounds)){
+            gameOver = true;
+            collisionMessage.textContent = "GAME OVER";
+            collisionMessage.style.display = "block";
+        }
     }
 }
+
 
 
 // Animation Loop
 function animate() {
-
     requestAnimationFrame(animate);
-    collectibles.forEach(cube => {
-	cube.rotation.y += 0.02;
-	cube.rotation.x += 0.01;
-    });
+if (!gameOver) {
+        // Spawn Blocks Repeatedly
+        const currentTime = performance.now();
+        if(currentTime - lastSpawn > 1000) {
+            spawnObstacles();
+            score++;
+            scoreMessage.textContent = `Score: ${score}`;
+            lastSpawn = currentTime;
+        }
 
-    if (!gameWon) {
-    updateTimer();
+        //wasd Controls
+        if (keys["w"]) player.position.z -= speed;
+        if (keys["s"]) player.position.z += speed;
+        if (keys["a"]) player.position.x -= speed;
+        if (keys["d"]) player.position.x += speed;
 
-    // WASD Controls
-    if (keys["w"]) {
-        player.position.z -= speed;
-    }
+        //arrow key controls
+        if (keys["arrowup"]) player.position.z -= speed;
+        if (keys["arrowdown"]) player.position.z += speed;
+        if (keys["arrowleft"]) player.position.x -= speed;
+        if (keys["arrowright"]) player.position.x += speed;
 
-    if (keys["s"]) {
-        player.position.z += speed;
-    }
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let obstacle = obstacles[i];
+            obstacle.position.y -= 0.05;
 
-    if (keys["a"]) {
-        player.position.x -= speed;
-    }
+            if (obstacle.position.y < -2) {
+                scene.remove(obstacle);
+                obstacles.splice(i, 1);
+            }
+        }
 
-    if (keys["d"]) {
-        player.position.x += speed;
-    }
-
-    // Arrow Key Controls
-    if (keys["arrowup"]) {
-        player.position.z -= speed;
-    }
-
-    if (keys["arrowdown"]) {
-        player.position.z += speed;
-    }
-
-    if (keys["arrowleft"]) {
-        player.position.x -= speed;
-    }
-
-    if (keys["arrowright"]) {
-        player.position.x += speed;
-    }
+        handleCollisions();
 }
-    handleCollisions();
-
     renderer.render(scene, camera);
 }
 
